@@ -1,0 +1,27 @@
+@startuml
+autonumber
+
+participant Magazines
+actor       Journalist
+participant Articles
+actor       Copywriter
+
+
+Journalist -> Magazines: Views magazine topics
+Journalist -> Articles: Submits a draft article for a topic
+Articles <-]: Assign a copywriter for a review
+Copywriter -> Articles: Views the draft article
+Copywriter -> Articles: Suggests changes to the draft article
+Journalist -> Articles: Views suggested changes
+Journalist -> Articles: Edits the draft article
+Journalist -> Articles: Marks the suggested change as applied
+Copywriter -> Articles: Views the draft article
+Copywriter -> Articles: Marks the suggested change as resolved
+Journalist -> Articles: Publishes the article
+
+activate Articles
+Articles -> Articles: Checks article review status \n(No unresolved change suggestions)
+Journalist <- Articles: Successful response
+deactivate Articles
+
+@enduml

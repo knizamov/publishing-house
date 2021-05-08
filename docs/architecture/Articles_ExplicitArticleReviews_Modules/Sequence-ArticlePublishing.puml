@@ -1,0 +1,48 @@
+@startuml
+
+participant Magazines
+actor       Journalist
+participant Articles as "Articles"
+participant ArticleReviews as "Article Reviews"
+actor       Copywriter
+
+autonumber
+
+Journalist -> Magazines: Views magazine topics
+
+Journalist -> Articles: Submits a draft article for a topic
+
+autonumber 3 0
+group Article Review Request [Manually by Journalist]
+    Journalist -> ArticleReviews: Requests a review (v1)
+else Automatically by Articles
+    Articles -> ArticleReviews: Requests a review (v1)
+else Manually by Copywriter
+    Copywriter -> ArticleReviews: Initiates a review
+end
+
+autonumber 4
+ArticleReviews -> ArticleReviews: Begin article review
+ArticleReviews <-]: Assign a copywriter for a review
+
+Copywriter -> Articles: Views the draft article (v1)
+Copywriter -> ArticleReviews: Suggests changes to the draft article (v1)
+Journalist -> ArticleReviews: Views suggested changes
+Journalist -> Articles: Edits the draft article (v1 -> v2)
+
+Journalist -> ArticleReviews: Requests a review (v2)
+
+Journalist -> ArticleReviews: Marks the suggested change as applied
+Copywriter -> Articles: Views the draft article (v2)
+Copywriter -> ArticleReviews: Marks the suggested change as resolved
+
+Journalist -> Articles: Publishes the article
+activate Articles
+Articles -> ArticleReviews: Checks Article Review Status
+Articles <- ArticleReviews: Approved (No Unresolved Change Suggestions)
+Journalist <- Articles: Successful response
+deactivate Articles
+
+Articles -->> ArticleReviews: Article Published
+
+@enduml
