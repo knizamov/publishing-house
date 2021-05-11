@@ -6,6 +6,6 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 internal class AppRunner
 
-fun main(args: Array<String>) {
+public fun main(args: Array<String>) {
     runApplication<AppRunner>(*args)
 }

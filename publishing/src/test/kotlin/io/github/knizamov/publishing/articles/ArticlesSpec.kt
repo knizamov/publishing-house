@@ -1,14 +1,43 @@
 package io.github.knizamov.publishing.articles
 
+import am.ik.yavi.core.ConstraintViolationsException
+import io.github.knizamov.publishing.articles.errors.ArticleDoesNotBelongToRequestedUser
+import io.github.knizamov.publishing.articles.intrastructure.ArticleConfiguration
+import io.github.knizamov.publishing.articles.messages.ArticleDto
+import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
+import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
+import io.github.knizamov.publishing.articles.messages.events.ArticleDraftCreated
+import io.github.knizamov.publishing.articles.messages.events.ArticleDraftEdited
+import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
+import io.github.knizamov.publishing.articles.messages.queries.GetArticle
 import io.github.knizamov.publishing.base.*
+import io.github.knizamov.publishing.base.And
 import io.github.knizamov.publishing.base.Given
 import io.github.knizamov.publishing.base.Specification
+import io.github.knizamov.publishing.base.TestEventPublisher
+import io.github.knizamov.publishing.base.TestUserContext
 import io.github.knizamov.publishing.base.Then
 import io.github.knizamov.publishing.base.When
+import io.github.knizamov.publishing.shared.authentication.Journalist
+import io.github.knizamov.publishing.shared.authentication.AuthError
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 
-internal class ArticlesSpec : Specification() {
+internal class ArticlesSpec : Specification(),
+    ArticleSamples, UserSamples {
+
+    override lateinit var eventPublisher: TestEventPublisher<ArticleEvent>
+    override lateinit var testUserContext: TestUserContext
+    override lateinit var facade: ArticleFacade
+
+    @BeforeEach
+    fun setUp() {
+        this.eventPublisher = TestEventPublisher()
+        this.testUserContext = TestUserContext(defaultUser = journalistA())
+        this.facade =ArticleConfiguration().inMemoryArticleFacade(eventPublisher, testUserContext)
+    }
 
     @Test
     fun `Article drafting, reviewing and publishing acceptance scenario`() {
@@ -48,56 +77,158 @@ internal class ArticlesSpec : Specification() {
     @Test
     fun `A draft article is created by a journalist`() {
         When("A journalist submits a draft article (title, text, topics)")
+        val journalist = randomJournalist()
+        val submitDraftArticle = SubmitDraftArticle.random()
+        val (id) = `as`(journalist) { facade(submitDraftArticle) }
+
         Then("The draft article is created with the provided content and can be viewed")
+        val article = facade(GetArticle(id))!!
+        assertDraftArticleIsCreated(command = submitDraftArticle, by = journalist, article)
+        assertArticleDraftCreatedEventIsPublished(article, journalist = journalist)
+    }
+
+    private fun assertDraftArticleIsCreated(command: SubmitDraftArticle, by: Journalist, createdArticle: ArticleDto) {
+        assert(command.title == createdArticle.title)
+        assert(command.text == createdArticle.text)
+        assert(command.topics == createdArticle.topics)
+        assert(createdArticle.journalistUserId == by.userId)
+        assert(createdArticle.status == "DRAFT")
+    }
+
+    private fun assertArticleDraftCreatedEventIsPublished(article: ArticleDto, journalist: Journalist) {
+        val event = eventPublisher.get<ArticleDraftCreated>(0)
+        assert(event.id == article.id)
+        assert(event.title == article.title)
+        assert(event.text == article.text)
+        assert(event.topics == article.topics)
+        assert(event.journalistUserId == journalist.userId)
     }
 
     @Test
     fun `A draft article is edited by a journalist`() {
         Given("A submitted draft article")
+        val article = submittedDraftArticle()
+
         When("The journalist edits a draft article (title, text, topics)")
+        val editDraftArticle = EditDraftArticle.random(id = article.id)
+         facade(editDraftArticle)
+
         Then("The draft article is edited with the provided content")
+        val editedArticle = facade(GetArticle(article.id))!!
+        assertDraftArticleIsEditedFor(command = editDraftArticle, editedArticle)
+        assertArticledDraftEditedEventIsPublished(editedArticle)
+    }
+
+    private fun assertDraftArticleIsEditedFor(command: EditDraftArticle, editedArticle: ArticleDto) {
+        assert(command.id == command.id)
+        assert(editedArticle.title == command.title)
+        assert(editedArticle.text == command.text)
+        assert(editedArticle.topics == command.topics)
+        assert(editedArticle.status == "DRAFT")
+    }
+
+    private fun assertArticledDraftEditedEventIsPublished(article: ArticleDto) {
+        val event = eventPublisher.get<ArticleDraftEdited>(0)
+        assert(event.id == article.id)
+        assert(event.text == article.text)
+        assert(event.title == article.title)
+        assert(event.topics == article.topics)
     }
 
     @Test
     fun `A draft article cannot be created by a copywriter`() {
         When("A copywriter submits a draft article")
+        val result = catch { asCopywriter { facade(SubmitDraftArticle.random()) } }
+
         Then("The operation is not permitted")
+        assert(result is AuthError.MissingRole)
     }
 
     @Test
     fun `A draft article cannot be edited by a copywriter`() {
         Given("A submitted draft article")
+        val article = asJournalist { submittedDraftArticle() }
+
         When("A copywriter edits a draft article")
+        val result = catch { asCopywriter { facade(EditDraftArticle.random(id = article.id)) } }
+
         Then("The operation is not permitted")
+        assert(result is AuthError.MissingRole)
     }
 
-    @Test
     @ParameterizedTest
-    fun `Basic draft article validation rules`(property: String, reason: String) {
+    @MethodSource
+    fun `Basic draft article validation rules when submitting`(submitDraftArticle: SubmitDraftArticle, property: String, rule: String) {
+        When("A journalist submits a draft article with invalid $property")
+        val result = catch { facade(submitDraftArticle) }
+
+        Then("Submission is rejected due to $rule")
+        assert(result is ConstraintViolationsException)
+        val violations = (result as ConstraintViolationsException).violations()
+        assert(violations.first().message().contains(rule))
+    }
+    fun `Basic draft article validation rules when submitting`() = Where {
+        val submitDraftArticle = SubmitDraftArticle.random()
+        // article                                                    | property    | rule
+//        of(editDraftArticle { title = null }                        , "title"     , """title cannot be blank""")
+        of(submitDraftArticle { title = "" }                          , "title"     , """"title" must not be blank""")
+        of(submitDraftArticle { title = "" }                          , "title"     , """"title" must not be blank""")
+        of(submitDraftArticle { title = "   " }                       , "title"     , """"title" must not be blank""")
+        of(submitDraftArticle { title = "a".repeat(201) }          , "title"     , """The size of "title" must be less than or equal to 200""")
+//        of(editDraftArticle { text = null }                       , "text"      , """"text" must not be blank""")
+        of(submitDraftArticle { text = "" }                           , "text"      , """"text" must not be blank""")
+        of(submitDraftArticle { text = "   " }                        , "text"      , """"text" must not be blank""")
+//        of(editDraftArticle { topics = listOf(null) }               , "topics"    , """topic must not be blank""")
+        of(submitDraftArticle { topics = listOf("") }                 , "topics"    , """"topic" must not be blank""")
+        of(submitDraftArticle { topics = listOf("  ") }               , "topics"    , """"topic" must not be blank""")
+        of(submitDraftArticle { topics = listOf() }                   , "topics"    , """The size of "topics" must be greater than or equal to 1""")
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    fun `Basic draft article validation rules when editing`(editDraftArticle: EditDraftArticle, property: String, rule: String) {
         Given("A submitted draft article")
+        val article = submittedDraftArticle()
+
         When("$property is edited")
-        Then("$property edit is rejected because $reason")
+        val result = catch { facade(editDraftArticle.copy(id = article.id)) }
+
+        Then("$property edit is rejected because $rule")
+        assert(result is ConstraintViolationsException)
+        val violations = (result as ConstraintViolationsException).violations()
+        assert(violations.first().message().contains(rule))
     }
-    fun `Basic draft article validation rules`() = Where {
-        // article                                      | property   | reason
-        of(Article { title = null }                     , "title"    , "title cannot be blank")
-        of(Article { title = "" }                       , "title"    , "title cannot be blank")
-        of(Article { title = "   " }                    , "title"    , "title cannot be blank")
-        of(Article { content = null }                   , "content"  , "content cannot be blank")
-        of(Article { content = "" }                     , "content"  , "content cannot be blank")
-        of(Article { content = "   " }                  , "content"  , "content cannot be blank")
-        of(Article { topics = listOf(null) }            , "topics"   , "topic cannot be blank")
-        of(Article { topics = listOf("") }              , "topics"   , "topic cannot be blank")
-        of(Article { topics = listOf("  ") }            , "topics"   , "topic cannot be blank")
-        of(Article { topics = listOf() }                , "topics"   , "article should have at least one topic")
+    fun `Basic draft article validation rules when editing`() = Where {
+        val editDraftArticle = EditDraftArticle.random(id = "")
+        // article                                                  | property    | rule
+//        of(editDraftArticle { title = null }                        , "title"     , """title cannot be blank""")
+        of(editDraftArticle { title = "" }                          , "title"     , """"title" must not be blank""")
+        of(editDraftArticle { title = "" }                          , "title"     , """"title" must not be blank""")
+        of(editDraftArticle { title = "   " }                       , "title"     , """"title" must not be blank""")
+        of(editDraftArticle { title = "a".repeat(201) }          , "title"     , """The size of "title" must be less than or equal to 200""")
+//        of(editDraftArticle { text = null }                       , "text"      , """"text" must not be blank""")
+        of(editDraftArticle { text = "" }                           , "text"      , """"text" must not be blank""")
+        of(editDraftArticle { text = "   " }                        , "text"      , """"text" must not be blank""")
+//        of(editDraftArticle { topics = listOf(null) }               , "topics"    , """topic must not be blank""")
+        of(editDraftArticle { topics = listOf("") }                 , "topics"    , """"topic" must not be blank""")
+        of(editDraftArticle { topics = listOf("  ") }               , "topics"    , """"topic" must not be blank""")
+        of(editDraftArticle { topics = listOf() }                   , "topics"    , """The size of "topics" must be greater than or equal to 1""")
     }
+
 
     @Test
     fun `Journalists cannot change each other's drafts`() {
         Given("A submitted draft article A belonging to a journalist A")
+        val articleOfJournalistA = asJournalistA { submittedDraftArticle() }
+
         And("A submitted draft article B belonging to a journalist B")
+        val articleOfJournalistB = asJournalistB { submittedDraftArticle() }
+
         When("The journalist A tries to change the draft article B")
+        val result = catch { asJournalistA { facade(EditDraftArticle.random(id = articleOfJournalistB.id)) } }
+
         Then("This operation is rejected")
+        assert(result is ArticleDoesNotBelongToRequestedUser)
     }
 
 

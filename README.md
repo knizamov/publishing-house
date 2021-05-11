@@ -90,6 +90,9 @@ Other assumptions (that are feasible to be formalized) can be found in the tests
 - An article is a simple text with a title and some headings: is there something special about headings or any other
   content type that we need to possible handle in some way or do something with it?
     - Current assumption: There is nothing special about headings, content of an article is an arbitrary text
+  
+- Should there be some content formatting checks (e.g. uppercase title, uppercase paragraphs etc)
+    -Current assumption: No
 
 Story 2: Journalist submits article drafts
 

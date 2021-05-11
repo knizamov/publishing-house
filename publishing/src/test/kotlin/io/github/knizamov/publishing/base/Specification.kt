@@ -12,15 +12,15 @@ internal fun Specification.When(description: String) = Unit
 internal fun Specification.Then(description: String) = Unit
 internal fun Specification.And(description: String) = Unit
 internal fun Specification.Where(block: WhereArguments.() -> Unit): Stream<Arguments> {
-    val arguments = arrayListOf<Arguments>()
+    val arguments = mutableListOf<Arguments>()
     block(WhereArguments(arguments))
     return arguments.stream()
 }
 
 internal class WhereArguments(
-    private val arguments: MutableList<Arguments>
+    private val arguments: MutableList<Arguments>,
 ) {
     fun of(vararg arguments: Any) {
-        this.arguments.add(Arguments.of(arguments));
+        this.arguments.add(Arguments.of(*arguments));
     }
 }
