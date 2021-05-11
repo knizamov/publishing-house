@@ -20,7 +20,7 @@ internal fun Specification.Where(block: WhereArguments.() -> Unit): Stream<Argum
 internal class WhereArguments(
     private val arguments: MutableList<Arguments>,
 ) {
-    fun of(vararg arguments: Any) {
+    fun of(vararg arguments: Any?) {
         this.arguments.add(Arguments.of(*arguments));
     }
 }

@@ -30,9 +30,9 @@ internal interface ArticleSamples {
             topics = randomList { faker.animal.name() })
     }
 
-    fun EditDraftArticle.Companion.random(id: String): EditDraftArticle {
+    fun EditDraftArticle.Companion.random(articleId: String): EditDraftArticle {
         return EditDraftArticle(
-            id = id,
+            articleId = articleId,
             title = faker.book.title(),
             text = faker.quote.matz(),
             topics = randomList { faker.animal.name() })
@@ -53,7 +53,7 @@ operator fun EditDraftArticle.invoke(block: EditDraftArticleBuilder.() -> Unit) 
 fun EditDraftArticle.modify(block: EditDraftArticleBuilder.() -> Unit): EditDraftArticle {
     val self = this
     return EditDraftArticleBuilder()
-        .apply { id = self.id; title = self.title; text = self.text; topics = self.topics }
+        .apply { id = self.articleId; title = self.title; text = self.text; topics = self.topics }
         .apply(block)
         .build()
 }

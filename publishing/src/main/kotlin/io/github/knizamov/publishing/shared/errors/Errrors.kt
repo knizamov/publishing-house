@@ -7,7 +7,6 @@ public abstract class Error : RuntimeException() {
         get() = this::class.simpleName!!
     abstract override val message: String
     abstract override val cause: Throwable?
-
 }
 
 

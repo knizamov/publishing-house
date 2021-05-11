@@ -2,6 +2,7 @@ package io.github.knizamov.publishing.articles
 
 import am.ik.yavi.core.ConstraintViolationsException
 import io.github.knizamov.publishing.articles.errors.ArticleDoesNotBelongToRequestedUser
+import io.github.knizamov.publishing.articles.errors.ArticleNotFound
 import io.github.knizamov.publishing.articles.intrastructure.ArticleConfiguration
 import io.github.knizamov.publishing.articles.messages.ArticleDto
 import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import java.util.*
 
 internal class ArticlesSpec : Specification(),
     ArticleSamples, UserSamples {
@@ -82,7 +84,7 @@ internal class ArticlesSpec : Specification(),
         val (id) = `as`(journalist) { facade(submitDraftArticle) }
 
         Then("The draft article is created with the provided content and can be viewed")
-        val article = facade(GetArticle(id))!!
+        val article = facade(GetArticle(id))
         assertDraftArticleIsCreated(command = submitDraftArticle, by = journalist, article)
         assertArticleDraftCreatedEventIsPublished(article, journalist = journalist)
     }
@@ -110,17 +112,17 @@ internal class ArticlesSpec : Specification(),
         val article = submittedDraftArticle()
 
         When("The journalist edits a draft article (title, text, topics)")
-        val editDraftArticle = EditDraftArticle.random(id = article.id)
+        val editDraftArticle = EditDraftArticle.random(articleId = article.id)
          facade(editDraftArticle)
 
         Then("The draft article is edited with the provided content")
-        val editedArticle = facade(GetArticle(article.id))!!
+        val editedArticle = facade(GetArticle(article.id))
         assertDraftArticleIsEditedFor(command = editDraftArticle, editedArticle)
         assertArticledDraftEditedEventIsPublished(editedArticle)
     }
 
     private fun assertDraftArticleIsEditedFor(command: EditDraftArticle, editedArticle: ArticleDto) {
-        assert(command.id == command.id)
+        assert(command.articleId == editedArticle.id)
         assert(editedArticle.title == command.title)
         assert(editedArticle.text == command.text)
         assert(editedArticle.topics == command.topics)
@@ -150,7 +152,7 @@ internal class ArticlesSpec : Specification(),
         val article = asJournalist { submittedDraftArticle() }
 
         When("A copywriter edits a draft article")
-        val result = catch { asCopywriter { facade(EditDraftArticle.random(id = article.id)) } }
+        val result = catch { asCopywriter { facade(EditDraftArticle.random(articleId = article.id)) } }
 
         Then("The operation is not permitted")
         assert(result is AuthError.MissingRole)
@@ -191,7 +193,7 @@ internal class ArticlesSpec : Specification(),
         val article = submittedDraftArticle()
 
         When("$property is edited")
-        val result = catch { facade(editDraftArticle.copy(id = article.id)) }
+        val result = catch { facade(editDraftArticle.copy(articleId = article.id)) }
 
         Then("$property edit is rejected because $rule")
         assert(result is ConstraintViolationsException)
@@ -199,7 +201,7 @@ internal class ArticlesSpec : Specification(),
         assert(violations.first().message().contains(rule))
     }
     fun `Basic draft article validation rules when editing`() = Where {
-        val editDraftArticle = EditDraftArticle.random(id = "")
+        val editDraftArticle = EditDraftArticle.random(articleId = "")
         // article                                                  | property    | rule
 //        of(editDraftArticle { title = null }                        , "title"     , """title cannot be blank""")
         of(editDraftArticle { title = "" }                          , "title"     , """"title" must not be blank""")
@@ -225,7 +227,7 @@ internal class ArticlesSpec : Specification(),
         val articleOfJournalistB = asJournalistB { submittedDraftArticle() }
 
         When("The journalist A tries to change the draft article B")
-        val result = catch { asJournalistA { facade(EditDraftArticle.random(id = articleOfJournalistB.id)) } }
+        val result = catch { asJournalistA { facade(EditDraftArticle.random(articleId = articleOfJournalistB.id)) } }
 
         Then("This operation is rejected")
         assert(result is ArticleDoesNotBelongToRequestedUser)
@@ -317,5 +319,20 @@ internal class ArticlesSpec : Specification(),
         When("The copywriter marks the change suggestion as resolved")
         And("The journalist publishes the article")
         Then("The article is published (status is changed)")
+    }
+
+    // Misc
+    @ParameterizedTest
+    @MethodSource
+    fun `Returns not found error when tries to invoke an operation for non existent article`(operationName: String, operation: () -> Unit) {
+        When("Tries to invoke an operation on non existent article")
+        val result = catch { operation() }
+        Then("Article Not Found error is returned")
+        assert(result is ArticleNotFound)
+    }
+    fun `Returns not found error when tries to invoke an operation for non existent article`() = Where {
+        val randomArticleId = UUID.randomUUID().toString()
+        of(EditDraftArticle::class.simpleName, { facade.invoke(EditDraftArticle.random(articleId = randomArticleId)) })
+        of(GetArticle::class.simpleName,{ facade.invoke(GetArticle(articleId = randomArticleId)) })
     }
 }

@@ -35,7 +35,7 @@ public class ArticleFacade internal constructor(
         editDraftArticleCommandValidator.validateAndThrowIfInvalid(command)
         val journalist = userContext.assumeRole<Journalist>()
 
-        val draftArticle = articles.findById(command.id)!! // TODO not found error
+        val draftArticle = articles.getById(ArticleId(command.articleId))
         draftArticle.edit(command, journalist)
         val savedArticle = articles.save(draftArticle)
 
@@ -44,8 +44,8 @@ public class ArticleFacade internal constructor(
 
 
     // Queries
-    public operator fun invoke(query: GetArticle): ArticleDto? {
-        return articles.findById(query.articleId)?.toDto()
+    public operator fun invoke(query: GetArticle): ArticleDto {
+        return articles.getById(ArticleId(query.articleId)).toDto()
     }
 }
 

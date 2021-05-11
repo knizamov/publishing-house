@@ -7,7 +7,7 @@ public data class SubmitDraftArticle(val title: String,
                                      val text: String,
                                      val topics: List<String>) : ArticleCommand() { public companion object }
 
-public data class EditDraftArticle(val id: String,
+public data class EditDraftArticle(val articleId: String,
                                    val title: String,
                                    val text: String,
                                    val topics: List<String>) : ArticleCommand() { public companion object }
