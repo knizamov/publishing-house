@@ -4,7 +4,12 @@ import io.github.knizamov.publishing.articles.*
 import io.github.knizamov.publishing.articles.Article
 import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
 import io.github.knizamov.publishing.articles.Articles
+import io.github.knizamov.publishing.articles.intrastructure.persistance.InMemoryArticleReviews
 import io.github.knizamov.publishing.articles.intrastructure.persistance.InMemoryArticles
+import io.github.knizamov.publishing.articles.intrastructure.persistance.InMemoryChangeSuggestions
+import io.github.knizamov.publishing.articles.review.ArticleReviewing
+import io.github.knizamov.publishing.articles.review.ArticleReviews
+import io.github.knizamov.publishing.articles.review.ChangeSuggestions
 import io.github.knizamov.publishing.shared.DomainEvent
 import io.github.knizamov.publishing.shared.EventPublisher
 import io.github.knizamov.publishing.shared.authentication.UserContext
@@ -15,20 +20,26 @@ internal class ArticleConfiguration {
         eventPublisher: EventPublisher<ArticleEvent>,
         userContext: UserContext,
     ): ArticleFacade {
-        val inMemoryArticles = InMemoryArticles()
         return createArticleFacade(
-            articles = inMemoryArticles,
+            articles = InMemoryArticles(),
+            articleReviews = InMemoryArticleReviews(),
+            changeSuggestions = InMemoryChangeSuggestions(),
             eventPublisher = eventPublisher,
-            userContext = userContext)
+            userContext = userContext
+        )
     }
 
-    private fun createArticleFacade(
+    protected fun createArticleFacade(
         articles: Articles,
+        articleReviews: ArticleReviews,
+        changeSuggestions: ChangeSuggestions,
         eventPublisher: EventPublisher<ArticleEvent>,
         userContext: UserContext,
     ): ArticleFacade {
-        val eventPublishingRepository: Articles = EventPublishingRepository(repository = articles, eventPublisher = eventPublisher as EventPublisher<DomainEvent>)
-        return ArticleFacade(articles = eventPublishingRepository, userContext = userContext)
+        return ArticleFacade(
+            articles = EventPublishingRepository(repository = articles, eventPublisher = eventPublisher as EventPublisher<DomainEvent>),
+            articleReviewing = ArticleReviewing(articleReviews, changeSuggestions, userContext),
+            userContext = userContext)
     }
 }
 

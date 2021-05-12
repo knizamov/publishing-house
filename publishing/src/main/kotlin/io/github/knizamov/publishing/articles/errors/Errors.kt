@@ -17,3 +17,10 @@ public class ArticleDoesNotBelongToRequestedUser(
     override val cause: Throwable? = null,
 ) : AuthError.Unauthorized()
 
+
+public class CopywriterNotAssignedToReviewArticle(
+    public val articleId: String,
+    override val userId: String,
+    override val message: String = "Article $articleId does not belong to user $userId",
+    override val cause: Throwable? = null,
+): AuthError.Unauthorized()

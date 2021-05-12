@@ -9,15 +9,21 @@ import am.ik.yavi.core.Validator
 import io.github.knizamov.publishing.articles.Text.Companion.textConstraints
 import io.github.knizamov.publishing.articles.Title.Companion.titleConstraints
 import io.github.knizamov.publishing.articles.messages.ArticleDto
+import io.github.knizamov.publishing.articles.messages.commands.AssignCopywriterToArticle
 import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
 import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
+import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
 import io.github.knizamov.publishing.articles.messages.queries.GetArticle
+import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
+import io.github.knizamov.publishing.articles.review.ArticleReviewing
+import io.github.knizamov.publishing.articles.review.ChangeSuggestionDto
 import io.github.knizamov.publishing.shared.authentication.Journalist
 import io.github.knizamov.publishing.shared.authentication.UserContext
 import io.github.knizamov.publishing.shared.authentication.assumeRole
 
 public class ArticleFacade internal constructor(
     private val articles: Articles,
+    private val articleReviewing: ArticleReviewing,
     private val userContext: UserContext,
 ) {
     // Commands
@@ -27,6 +33,8 @@ public class ArticleFacade internal constructor(
 
         val draftArticle = Article.draft(command, journalist)
         val savedArticle = articles.save(draftArticle)
+
+        articleReviewing.beginArticleReviewing(savedArticle.id)
 
         return savedArticle.toDto()
     }
@@ -42,12 +50,26 @@ public class ArticleFacade internal constructor(
         return savedArticle.toDto()
     }
 
+    public operator fun invoke(command: AssignCopywriterToArticle) {
+        articleReviewing.assignCopywriter(command)
+    }
+
+    public operator fun invoke(command: SuggestChange) {
+        articleReviewing.suggestChange(command)
+    }
+
+
 
     // Queries
     public operator fun invoke(query: GetArticle): ArticleDto {
         return articles.getById(ArticleId(query.articleId)).toDto()
     }
+
+    public operator fun invoke(query: GetChangeSuggestions): List<ChangeSuggestionDto> {
+        return articleReviewing.getChangeSuggestions(query)
+    }
 }
+
 
 internal fun <T : Any> Validator<T>.validateAndThrowIfInvalid(target: T) {
     this.validate(target).throwIfInvalid(::ConstraintViolationsException)
