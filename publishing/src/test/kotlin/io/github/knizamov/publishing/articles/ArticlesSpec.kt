@@ -10,6 +10,7 @@ import io.github.knizamov.publishing.articles.messages.events.ArticleDraftEdited
 import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
 import io.github.knizamov.publishing.articles.messages.queries.GetArticle
 import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
+import io.github.knizamov.publishing.articles.review.ChangeSuggestionDto
 import io.github.knizamov.publishing.base.*
 import io.github.knizamov.publishing.base.And
 import io.github.knizamov.publishing.base.Given
@@ -18,18 +19,18 @@ import io.github.knizamov.publishing.base.TestEventPublisher
 import io.github.knizamov.publishing.base.TestUserContext
 import io.github.knizamov.publishing.base.Then
 import io.github.knizamov.publishing.base.When
-import io.github.knizamov.publishing.shared.authentication.Journalist
-import io.github.knizamov.publishing.shared.authentication.AuthError
-import io.github.knizamov.publishing.shared.authentication.Copywriter
+import io.github.knizamov.publishing.shared.security.Journalist
+import io.github.knizamov.publishing.shared.security.AuthError
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
-import java.lang.RuntimeException
 import java.time.Instant
 import java.util.*
 
-internal class ArticlesSpec : Specification(),
+// Note for a reviewer: I use Power Assert https://github.com/bnorm/kotlin-power-assert that gives a nice message when assertion fails
+// That way assertions look more readable, less verbose and nicer to write. It's similar to Groovy's power assert used in Spock
+internal open class ArticlesSpec : Specification(),
     ArticleSamples, UserSamples {
 
     override lateinit var eventPublisher: TestEventPublisher<ArticleEvent>
@@ -40,11 +41,15 @@ internal class ArticlesSpec : Specification(),
     fun setUp() {
         this.eventPublisher = TestEventPublisher()
         this.testUserContext = TestUserContext(defaultUser = journalistA)
-        this.facade = ArticleConfiguration().inMemoryArticleFacade(eventPublisher, testUserContext)
+        this.facade = createFacade(eventPublisher, testUserContext)
+    }
+
+    open fun createFacade(testEventPublisher: TestEventPublisher<ArticleEvent>, testUserContext: TestUserContext): ArticleFacade {
+        return ArticleConfiguration().inMemoryArticleFacade(testEventPublisher, testUserContext)
     }
 
     @Test
-    fun `Article drafting, reviewing and publishing acceptance scenario`() {
+    open fun `Article drafting, reviewing and publishing acceptance scenario`() {
         When("A journalist submits a draft article (title, text, topics)")
         Then("The draft article is created with the provided content and can be viewed")
 
@@ -79,7 +84,7 @@ internal class ArticlesSpec : Specification(),
     // Can journalists edit each other's draft articles?
 
     @Test
-    fun `A draft article is created by a journalist`() {
+    open fun `A draft article is created by a journalist`() {
         When("A journalist submits a draft article (title, text, topics)")
         val journalist = randomJournalist()
         val submitDraftArticle = SubmitDraftArticle.random()
@@ -109,7 +114,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A draft article is edited by a journalist`() {
+    open fun `A draft article is edited by a journalist`() {
         Given("A submitted draft article")
         val article = submittedDraftArticle()
 
@@ -140,7 +145,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A draft article cannot be created by a copywriter`() {
+    open fun `A draft article cannot be created by a copywriter`() {
         When("A copywriter submits a draft article")
         val result = catch { asCopywriter { facade(SubmitDraftArticle.random()) } }
 
@@ -149,7 +154,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A draft article cannot be edited by a copywriter`() {
+    open fun `A draft article cannot be edited by a copywriter`() {
         Given("A submitted draft article")
         val article = asJournalist { submittedDraftArticle() }
 
@@ -162,7 +167,7 @@ internal class ArticlesSpec : Specification(),
 
     @ParameterizedTest
     @MethodSource
-    fun `Basic draft article validation rules when submitting`(
+    open fun `Basic draft article validation rules when submitting`(
         submitDraftArticle: SubmitDraftArticle,
         property: String,
         rule: String,
@@ -195,7 +200,7 @@ internal class ArticlesSpec : Specification(),
 
     @ParameterizedTest
     @MethodSource
-    fun `Basic draft article validation rules when editing`(editDraftArticle: EditDraftArticle, property: String, rule: String) {
+    open fun `Basic draft article validation rules when editing`(editDraftArticle: EditDraftArticle, property: String, rule: String) {
         Given("A submitted draft article")
         val article = submittedDraftArticle()
 
@@ -226,7 +231,7 @@ internal class ArticlesSpec : Specification(),
 
 
     @Test
-    fun `Journalists cannot change each other's drafts`() {
+    open fun `Journalists cannot change each other's drafts`() {
         Given("A submitted draft article A belonging to a journalist A")
         val articleOfJournalistA = asJournalistA { submittedDraftArticle() }
 
@@ -248,7 +253,7 @@ internal class ArticlesSpec : Specification(),
     // Is there any more elaborate reviewing process? Is there any draft article versioning?
 
     @Test
-    fun `A copywriter suggests changes to an article as a comment`() {
+    open fun `A copywriter suggests changes to an article as a comment`() {
         Given("A submitted draft article")
         val article = submittedDraftArticle()
 
@@ -261,7 +266,7 @@ internal class ArticlesSpec : Specification(),
         `as`(copywriter) { facade(suggestChange) }
 
         Then("The change suggestion is attached to the given article and can be viewed")
-        val changeSuggestions = facade(GetChangeSuggestions(articleId = article.id))
+        val changeSuggestions: List<ChangeSuggestionDto> = facade(GetChangeSuggestions(articleId = article.id))
         assert(changeSuggestions.first().articleId == article.id)
         assert(changeSuggestions.first().copywriterUserId == copywriter.userId)
         assert(changeSuggestions.first().comment == suggestChange.comment)
@@ -295,7 +300,7 @@ internal class ArticlesSpec : Specification(),
 
 
     @Test
-    fun `A copywriter can only suggest changes to the article they were assigned to`() {
+    open fun `A copywriter can only suggest changes to the article they were assigned to`() {
         Given("A submitted draft article assigned to a copywriter A")
         val article = submittedDraftArticle()
         facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
@@ -308,7 +313,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `Change suggestions are not allowed once the article is published`() {
+    open fun `Change suggestions are not allowed once the article is published`() {
         Given("A published article")
         val article = submittedDraftArticle()
         facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
@@ -323,7 +328,7 @@ internal class ArticlesSpec : Specification(),
 
     // Story 4: As a journalist, I respond to suggestions by making the change suggestions
     @Test
-    fun `A change suggestion can be marked as applied by a journalist`() {
+    open fun `A change suggestion can be marked as applied by a journalist`() {
         Given("A submitted draft article")
         And("A copywriter suggested a change")
         When("The journalist makes the change suggestion by editing the article")
@@ -334,7 +339,7 @@ internal class ArticlesSpec : Specification(),
 
     // Story 5: As a copywriter, I resolve suggestions that the journalist applied
     @Test
-    fun `A copywriter resolves change suggestions`() {
+    open fun `A copywriter resolves change suggestions`() {
         Given("A submitted draft article")
         And("The copywriter suggested a change")
         And("The journalist marked the change suggestion as applied")
@@ -344,7 +349,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A copywriter can reject applied change suggestions`() {
+    open fun `A copywriter can reject applied change suggestions`() {
         Given("A submitted draft article")
         And("The copywriter suggested a change")
         And("The journalist marked the change suggestion as applied")
@@ -361,7 +366,7 @@ internal class ArticlesSpec : Specification(),
     // Can article be edited after if was published? How can it be republished?
     // Are there any additional rules that needs to be checked before publishing an article in addition to checking
     @Test
-    fun `A draft article can be published with no review (no unresolved suggestions)`() {
+    open fun `A draft article can be published with no review (no unresolved suggestions)`() {
         Given("A submitted draft article")
         val article = submittedDraftArticle()
 
@@ -374,7 +379,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A draft article cannot be published by a copywriter`() {
+    open fun `A draft article cannot be published by a copywriter`() {
         Given("A submitted draft article")
         val article = submittedDraftArticle()
 
@@ -386,7 +391,7 @@ internal class ArticlesSpec : Specification(),
     }
 
     @Test
-    fun `A draft article can be published by a journalist only when all change suggestions are resolved`() {
+    open fun `A draft article can be published by a journalist only when all change suggestions are resolved`() {
         Given("A submitted draft article")
         val article = asJournalistA { submittedDraftArticle() }
 
@@ -408,9 +413,10 @@ internal class ArticlesSpec : Specification(),
     // Misc
     @ParameterizedTest
     @MethodSource
-    fun `Returns not found error when tries to invoke an operation for non existent article`(operationName: String, operation: () -> Unit) {
+    open fun `Returns not found error when tries to invoke an operation for non existent article`(operationName: String, operation: () -> Unit) {
         When("Tries to invoke an operation on non existent article")
         val result = catch { operation() }
+
         Then("Article Not Found error is returned")
         assert(result is ArticleNotFound)
     }
@@ -420,3 +426,12 @@ internal class ArticlesSpec : Specification(),
         of(GetArticle::class.simpleName,{ facade.invoke(GetArticle(articleId = randomArticleId)) })
     }
 }
+
+
+public operator fun ArticleFacade.invoke(command: EditDraftArticle): ArticleDto = editDraftArticle(command)
+public operator fun ArticleFacade.invoke(command: SubmitDraftArticle): ArticleDto = submitDraftArticle(command)
+public operator fun ArticleFacade.invoke(command: PublishArticle): ArticleDto = publishArticle(command)
+public operator fun ArticleFacade.invoke(command: AssignCopywriterToArticle): Unit = assignCopywriterToArticle(command)
+public operator fun ArticleFacade.invoke(command: SuggestChange): Unit = suggestChange(command)
+public operator fun ArticleFacade.invoke(query: GetArticle): ArticleDto = getArticle(query)
+public operator fun ArticleFacade.invoke(query: GetChangeSuggestions): List<ChangeSuggestionDto> = getChangeSuggestions(query)

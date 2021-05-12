@@ -12,7 +12,8 @@ import kotlin.properties.Delegates
 
 private val faker: Faker = Faker()
 
-
+// Note for a reviewer: This is just a Test Fixture implemented with kind of trait/mixin interface
+// It's used to not repeat data setup. Often times we just need any valid data. It also provides predefined scenarios (like an draft article that was already submitted)
 internal interface ArticleSamples {
     val facade: ArticleFacade
     val eventPublisher: TestEventPublisher<ArticleEvent>

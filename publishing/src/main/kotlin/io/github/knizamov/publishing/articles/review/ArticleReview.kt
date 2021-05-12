@@ -4,7 +4,7 @@ import io.github.knizamov.publishing.articles.ArticleId
 import io.github.knizamov.publishing.articles.errors.ArticleReviewClosed
 import io.github.knizamov.publishing.articles.errors.CopywriterNotAssignedToReviewArticle
 import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
-import io.github.knizamov.publishing.shared.authentication.Copywriter
+import io.github.knizamov.publishing.shared.security.Copywriter
 import java.time.Instant
 import java.util.*
 

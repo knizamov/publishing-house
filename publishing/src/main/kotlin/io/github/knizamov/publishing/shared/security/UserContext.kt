@@ -1,4 +1,4 @@
-package io.github.knizamov.publishing.shared.authentication
+package io.github.knizamov.publishing.shared.security
 
 public interface UserContext {
 

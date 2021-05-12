@@ -14,18 +14,36 @@ import io.github.knizamov.publishing.articles.messages.queries.GetArticle
 import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
 import io.github.knizamov.publishing.articles.review.ArticleReviewing
 import io.github.knizamov.publishing.articles.review.ChangeSuggestionDto
-import io.github.knizamov.publishing.shared.authentication.Journalist
-import io.github.knizamov.publishing.shared.authentication.UserContext
-import io.github.knizamov.publishing.shared.authentication.assumeRole
+import io.github.knizamov.publishing.shared.security.Journalist
+import io.github.knizamov.publishing.shared.security.UserContext
+import io.github.knizamov.publishing.shared.security.assumeRole
 
-public class ArticleFacade internal constructor(
+
+// Not for a reviewer: I know an interface is not needed, but I wanted to reuse the same Unit Test for Integration tests
+// that's why I also created RemoteMockMvcArticleFacade (see ArticlesIntegrationSpec for more details)
+
+// I generally follow Hexagonal Architecture (although not sure about it fully whether it's a good fit)
+// and I was heavily inspired by Jakub Nabrdalik's talks: Keep It Clean and Improving your Test Driven Development
+// I try to keep an eye on visibility modifiers and module boundaries. Modules could be extracted into a separate gradle project to enforce internal visibility
+public interface ArticleFacade {
+    public fun submitDraftArticle(command: SubmitDraftArticle): ArticleDto
+    public fun editDraftArticle(command: EditDraftArticle): ArticleDto
+    public fun publishArticle(command: PublishArticle): ArticleDto
+    public fun assignCopywriterToArticle(command: AssignCopywriterToArticle)
+    public fun suggestChange(command: SuggestChange)
+
+    public fun getArticle(query: GetArticle): ArticleDto
+    public fun getChangeSuggestions(query: GetChangeSuggestions): List<ChangeSuggestionDto>
+}
+
+internal class LocalArticleFacade internal constructor(
     private val articles: Articles,
     private val articleReviewing: ArticleReviewing,
     private val publishingPolicyFactory: PublishingPolicyFactory,
     private val userContext: UserContext,
-) {
-    // Commands
-    public operator fun invoke(command: SubmitDraftArticle): ArticleDto {
+) : ArticleFacade {
+
+    override fun submitDraftArticle(command: SubmitDraftArticle): ArticleDto {
         summitDraftArticleCommandValidator.validateAndThrowIfInvalid(command)
         val journalist = userContext.assumeRole<Journalist>()
 
@@ -37,7 +55,7 @@ public class ArticleFacade internal constructor(
         return savedArticle.toDto()
     }
 
-    public operator fun invoke(command: EditDraftArticle): ArticleDto {
+    override fun editDraftArticle(command: EditDraftArticle): ArticleDto {
         editDraftArticleCommandValidator.validateAndThrowIfInvalid(command)
         val journalist = userContext.assumeRole<Journalist>()
 
@@ -48,7 +66,7 @@ public class ArticleFacade internal constructor(
         return savedArticle.toDto()
     }
 
-    public operator fun invoke(command: PublishArticle): ArticleDto {
+    override fun publishArticle(command: PublishArticle): ArticleDto {
         val journalist = userContext.assumeRole<Journalist>()
 
         val article = articles.getById(ArticleId(command.articleId))
@@ -61,26 +79,23 @@ public class ArticleFacade internal constructor(
         return savedArticle.toDto()
     }
 
-    public operator fun invoke(command: AssignCopywriterToArticle) {
+    override fun assignCopywriterToArticle(command: AssignCopywriterToArticle) {
         articleReviewing.assignCopywriter(command)
     }
 
-    public operator fun invoke(command: SuggestChange) {
+    override fun suggestChange(command: SuggestChange) {
         articleReviewing.suggestChange(command)
     }
 
 
-
-    // Queries
-    public operator fun invoke(query: GetArticle): ArticleDto {
+    override fun getArticle(query: GetArticle): ArticleDto {
         return articles.getById(ArticleId(query.articleId)).toDto()
     }
 
-    public operator fun invoke(query: GetChangeSuggestions): List<ChangeSuggestionDto> {
+    override fun getChangeSuggestions(query: GetChangeSuggestions): List<ChangeSuggestionDto> {
         return articleReviewing.getChangeSuggestions(query).map { it.toDto() }
     }
 }
-
 
 internal fun <T : Any> Validator<T>.validateAndThrowIfInvalid(target: T) {
     this.validate(target).throwIfInvalid(::ConstraintViolationsException)

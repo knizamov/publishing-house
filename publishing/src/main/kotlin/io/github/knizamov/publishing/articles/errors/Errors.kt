@@ -1,6 +1,6 @@
 package io.github.knizamov.publishing.articles.errors
 
-import io.github.knizamov.publishing.shared.authentication.AuthError
+import io.github.knizamov.publishing.shared.security.AuthError
 import io.github.knizamov.publishing.shared.errors.Error
 
 

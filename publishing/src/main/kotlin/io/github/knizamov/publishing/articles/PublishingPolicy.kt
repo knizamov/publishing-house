@@ -4,6 +4,10 @@ import io.github.knizamov.publishing.articles.errors.PublishingPolicyNotSatisfie
 import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
 import io.github.knizamov.publishing.articles.review.ArticleReviewing
 
+// Note for a reviewer: Introducing an interface was not necessarily for the given requirements but I wanted to show a strategy pattern in domain code
+// This would be useful if we had more checks before publishing. Factory could provide some dynamic or static configuration.
+// There could be CompositePublishingPolicy running multiple checks possibly asynchronously, or in some specific sequence, etc.
+// And the code needs to know only about PublishingPolicy interface without the need to change it with new rules.
 internal interface PublishingPolicy {
     fun isSatisfied(article: Article): Result
 

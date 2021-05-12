@@ -12,33 +12,37 @@ import io.github.knizamov.publishing.articles.review.ArticleReviews
 import io.github.knizamov.publishing.articles.review.ChangeSuggestions
 import io.github.knizamov.publishing.shared.DomainEvent
 import io.github.knizamov.publishing.shared.EventPublisher
-import io.github.knizamov.publishing.shared.authentication.UserContext
+import io.github.knizamov.publishing.shared.security.UserContext
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 
+@Configuration
 internal class ArticleConfiguration {
 
     internal fun inMemoryArticleFacade(
         eventPublisher: EventPublisher<ArticleEvent>,
         userContext: UserContext,
     ): ArticleFacade {
-        return createArticleFacade(
+        return springArticleFacade(
             articles = InMemoryArticles(),
             articleReviews = InMemoryArticleReviews(),
             changeSuggestions = InMemoryChangeSuggestions(),
-            eventPublisher = eventPublisher,
+            eventPublisher = eventPublisher as EventPublisher<DomainEvent>,
             userContext = userContext
         )
     }
 
-    protected fun createArticleFacade(
+    @Bean
+    protected fun springArticleFacade(
         articles: Articles,
         articleReviews: ArticleReviews,
         changeSuggestions: ChangeSuggestions,
-        eventPublisher: EventPublisher<ArticleEvent>,
+        eventPublisher: EventPublisher<DomainEvent>,
         userContext: UserContext,
     ): ArticleFacade {
         val articleReviewing = ArticleReviewing(articleReviews, changeSuggestions, userContext)
-        return ArticleFacade(
-            articles = EventPublishingRepository(repository = articles, eventPublisher = eventPublisher as EventPublisher<DomainEvent>),
+        return LocalArticleFacade(
+            articles = EventPublishingRepository(repository = articles, eventPublisher = eventPublisher),
             articleReviewing = articleReviewing,
             publishingPolicyFactory = PublishingPolicyFactory(articleReviewing),
             userContext = userContext)

@@ -1,20 +1,15 @@
 package io.github.knizamov.publishing.articles.review
 
 import am.ik.yavi.builder.ValidatorBuilder
-import am.ik.yavi.builder.forEach
 import am.ik.yavi.builder.konstraint
 import io.github.knizamov.publishing.articles.ArticleId
-import io.github.knizamov.publishing.articles.Text.Companion.textConstraints
-import io.github.knizamov.publishing.articles.Title.Companion.titleConstraints
-import io.github.knizamov.publishing.articles.TopicId
 import io.github.knizamov.publishing.articles.messages.commands.AssignCopywriterToArticle
-import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
 import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
 import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
 import io.github.knizamov.publishing.articles.validateAndThrowIfInvalid
-import io.github.knizamov.publishing.shared.authentication.Copywriter
-import io.github.knizamov.publishing.shared.authentication.UserContext
-import io.github.knizamov.publishing.shared.authentication.assumeRole
+import io.github.knizamov.publishing.shared.security.Copywriter
+import io.github.knizamov.publishing.shared.security.UserContext
+import io.github.knizamov.publishing.shared.security.assumeRole
 
 internal class ArticleReviewing internal constructor(
     private val articleReviews: ArticleReviews,
