@@ -3,12 +3,15 @@ package io.github.knizamov.publishing.articles
 import am.ik.yavi.builder.ValidatorBuilder
 import am.ik.yavi.constraint.CharSequenceConstraint
 import io.github.knizamov.publishing.articles.errors.ArticleDoesNotBelongToRequestedUser
+import io.github.knizamov.publishing.articles.errors.PublishingPolicyNotSatisfied
 import io.github.knizamov.publishing.articles.messages.ArticleDto
 import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
+import io.github.knizamov.publishing.articles.messages.commands.PublishArticle
 import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
 import io.github.knizamov.publishing.articles.messages.events.ArticleDraftCreated
 import io.github.knizamov.publishing.articles.messages.events.ArticleDraftEdited
 import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
+import io.github.knizamov.publishing.articles.messages.events.ArticlePublished
 import io.github.knizamov.publishing.shared.AggregateRoot
 import io.github.knizamov.publishing.shared.authentication.Journalist
 import java.util.*
@@ -63,10 +66,22 @@ internal class Article private constructor(
         return ArticleDto(id = id.asString(), title = title.asString(), text = text.asString(), topics = topics.map { it.asString() }, status = status.toString(), journalistUserId = journalistUserId)
     }
 
+    fun publish(command: PublishArticle, publishingPolicy: PublishingPolicy, journalist: Journalist) {
+        assertArticleBelongsTo(journalist)
+        publishingPolicy.isSatisfied(this)
+            .throwIfFailed()
+
+        apply(ArticlePublished(id = id.asString(), title = title.asString(), text = text.asString(), topics = topics.map { it.asString() }, journalistUserId = journalistUserId))
+    }
+    private fun on(event: ArticlePublished) {
+        this.status = Status.PUBLISHED
+    }
+
     override fun on(event: ArticleEvent) {
-        when (event) {
+        val exhaustive = when (event) {
             is ArticleDraftCreated -> on(event)
             is ArticleDraftEdited -> on(event)
+            is ArticlePublished -> on(event)
         }
     }
 

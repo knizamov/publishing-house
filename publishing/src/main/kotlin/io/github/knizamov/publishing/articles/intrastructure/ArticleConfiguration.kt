@@ -36,9 +36,11 @@ internal class ArticleConfiguration {
         eventPublisher: EventPublisher<ArticleEvent>,
         userContext: UserContext,
     ): ArticleFacade {
+        val articleReviewing = ArticleReviewing(articleReviews, changeSuggestions, userContext)
         return ArticleFacade(
             articles = EventPublishingRepository(repository = articles, eventPublisher = eventPublisher as EventPublisher<DomainEvent>),
-            articleReviewing = ArticleReviewing(articleReviews, changeSuggestions, userContext),
+            articleReviewing = articleReviewing,
+            publishingPolicyFactory = PublishingPolicyFactory(articleReviewing),
             userContext = userContext)
     }
 }

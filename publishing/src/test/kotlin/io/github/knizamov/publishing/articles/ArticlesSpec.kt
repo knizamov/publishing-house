@@ -1,15 +1,10 @@
 package io.github.knizamov.publishing.articles
 
 import am.ik.yavi.core.ConstraintViolationsException
-import io.github.knizamov.publishing.articles.errors.ArticleDoesNotBelongToRequestedUser
-import io.github.knizamov.publishing.articles.errors.ArticleNotFound
-import io.github.knizamov.publishing.articles.errors.CopywriterNotAssignedToReviewArticle
+import io.github.knizamov.publishing.articles.errors.*
 import io.github.knizamov.publishing.articles.intrastructure.ArticleConfiguration
 import io.github.knizamov.publishing.articles.messages.ArticleDto
-import io.github.knizamov.publishing.articles.messages.commands.AssignCopywriterToArticle
-import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
-import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
-import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
+import io.github.knizamov.publishing.articles.messages.commands.*
 import io.github.knizamov.publishing.articles.messages.events.ArticleDraftCreated
 import io.github.knizamov.publishing.articles.messages.events.ArticleDraftEdited
 import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
@@ -25,6 +20,7 @@ import io.github.knizamov.publishing.base.Then
 import io.github.knizamov.publishing.base.When
 import io.github.knizamov.publishing.shared.authentication.Journalist
 import io.github.knizamov.publishing.shared.authentication.AuthError
+import io.github.knizamov.publishing.shared.authentication.Copywriter
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -43,7 +39,7 @@ internal class ArticlesSpec : Specification(),
     @BeforeEach
     fun setUp() {
         this.eventPublisher = TestEventPublisher()
-        this.testUserContext = TestUserContext(defaultUser = journalistA())
+        this.testUserContext = TestUserContext(defaultUser = journalistA)
         this.facade = ArticleConfiguration().inMemoryArticleFacade(eventPublisher, testUserContext)
     }
 
@@ -261,7 +257,7 @@ internal class ArticlesSpec : Specification(),
         facade(AssignCopywriterToArticle(copywriterUserId = copywriter.userId, articleId = article.id))
 
         When("The copywriter suggests a change to the article")
-        val suggestChange = SuggestChange(articleId = article.id, comment = "random comment")
+        val suggestChange = SuggestChange.random(articleId = article.id)
         `as`(copywriter) { facade(suggestChange) }
 
         Then("The change suggestion is attached to the given article and can be viewed")
@@ -273,14 +269,39 @@ internal class ArticlesSpec : Specification(),
         assert(changeSuggestions.first().status == "UNRESOLVED")
     }
 
+    @ParameterizedTest
+    @MethodSource
+    fun `A Change suggestion is a non empty chunk of text`(comment: String, rule: String) {
+        Given("A submitted draft article")
+        val article = submittedDraftArticle()
+
+        And("A copywriter is assigned to the article")
+        facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
+
+        When("The copywriter suggests a change with a blank comment")
+        val result =  catch { asCopywriterA { facade(SuggestChange(articleId = article.id, comment = comment)) } }
+
+        Then("This operation is rejected")
+        assert(result is ConstraintViolationsException)
+        val violations = (result as ConstraintViolationsException).violations()
+        assert(violations.first().message().contains(rule))
+    }
+
+    fun `A Change suggestion is a non empty chunk of text`() = Where {
+//        comment  | rule
+        of(""      , """"comment" must not be blank""")
+        of("  "    , """"comment" must not be blank""")
+    }
+
+
     @Test
     fun `A copywriter can only suggest changes to the article they were assigned to`() {
         Given("A submitted draft article assigned to a copywriter A")
         val article = submittedDraftArticle()
-        facade(AssignCopywriterToArticle(copywriterUserId = copywriterA().userId, articleId = article.id))
+        facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
 
         When("A copywriter B suggests a change")
-        val result = catch { asCopywriterB { facade(SuggestChange(articleId = article.id, comment = "journalistB comment")) } }
+        val result = catch { asCopywriterB { facade(SuggestChange.random(articleId = article.id)) } }
 
         Then("This operation is rejected")
         assert(result is CopywriterNotAssignedToReviewArticle)
@@ -289,8 +310,15 @@ internal class ArticlesSpec : Specification(),
     @Test
     fun `Change suggestions are not allowed once the article is published`() {
         Given("A published article")
+        val article = submittedDraftArticle()
+        facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
+        facade(PublishArticle(articleId = article.id))
+
         When("A copywriter suggests a change")
+        val result = catch { asCopywriterA { facade(SuggestChange.random(articleId = article.id)) } }
+
         Then("This operation is rejected")
+        assert(result is ArticleReviewClosed)
     }
 
     // Story 4: As a journalist, I respond to suggestions by making the change suggestions
@@ -333,19 +361,44 @@ internal class ArticlesSpec : Specification(),
     // Can article be edited after if was published? How can it be republished?
     // Are there any additional rules that needs to be checked before publishing an article in addition to checking
     @Test
-    fun `A draft article can be published with no review`() {
+    fun `A draft article can be published with no review (no unresolved suggestions)`() {
         Given("A submitted draft article")
+        val article = submittedDraftArticle()
+
         When("The journalist publishes the article")
+        facade(PublishArticle(articleId = article.id))
+
         Then("The article is published (status is changed)")
+        val publishedArticle = facade(GetArticle(article.id))
+        assert(publishedArticle.status == "PUBLISHED")
+    }
+
+    @Test
+    fun `A draft article cannot be published by a copywriter`() {
+        Given("A submitted draft article")
+        val article = submittedDraftArticle()
+
+        When("The journalist publishes the article")
+        val result = catch { asCopywriter { facade(PublishArticle(articleId = article.id)) } }
+
+        Then("This operation is rejected")
+        assert(result is AuthError.MissingRole)
     }
 
     @Test
     fun `A draft article can be published by a journalist only when all change suggestions are resolved`() {
         Given("A submitted draft article")
+        val article = asJournalistA { submittedDraftArticle() }
+
         And("The copywriter suggested a change")
+        facade(AssignCopywriterToArticle(copywriterUserId = copywriterA.userId, articleId = article.id))
+        asCopywriterA { facade(SuggestChange.random(articleId = article.id)) }
 
         When("The journalist publishes the article")
+        val result = catch { asJournalistA { facade(PublishArticle(articleId = article.id)) } }
+
         Then("This operation is rejected due to unresolved change suggestions")
+        assert(result is PublishingPolicyNotSatisfied)
 
         When("The copywriter marks the change suggestion as resolved")
         And("The journalist publishes the article")
@@ -355,16 +408,12 @@ internal class ArticlesSpec : Specification(),
     // Misc
     @ParameterizedTest
     @MethodSource
-    fun `Returns not found error when tries to invoke an operation for non existent article`(
-        operationName: String,
-        operation: () -> Unit,
-    ) {
+    fun `Returns not found error when tries to invoke an operation for non existent article`(operationName: String, operation: () -> Unit) {
         When("Tries to invoke an operation on non existent article")
         val result = catch { operation() }
         Then("Article Not Found error is returned")
         assert(result is ArticleNotFound)
     }
-
     fun `Returns not found error when tries to invoke an operation for non existent article`() = Where {
         val randomArticleId = UUID.randomUUID().toString()
         of(EditDraftArticle::class.simpleName, { facade.invoke(EditDraftArticle.random(articleId = randomArticleId)) })

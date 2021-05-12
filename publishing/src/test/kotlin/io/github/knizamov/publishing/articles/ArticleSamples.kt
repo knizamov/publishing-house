@@ -3,6 +3,7 @@ package io.github.knizamov.publishing.articles
 import io.github.knizamov.publishing.articles.messages.ArticleDto
 import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
 import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
+import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
 import io.github.knizamov.publishing.articles.messages.events.ArticleEvent
 import io.github.knizamov.publishing.base.TestEventPublisher
 import io.github.knizamov.publishing.base.randomList
@@ -36,6 +37,10 @@ internal interface ArticleSamples {
             title = faker.book.title(),
             text = faker.quote.matz(),
             topics = randomList { faker.animal.name() })
+    }
+
+    fun SuggestChange.Companion.random(articleId: String): SuggestChange {
+        return SuggestChange(articleId = articleId, comment = faker.quote.yoda())
     }
 }
 

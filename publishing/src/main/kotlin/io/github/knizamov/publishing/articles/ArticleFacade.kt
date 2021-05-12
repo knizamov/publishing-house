@@ -9,10 +9,7 @@ import am.ik.yavi.core.Validator
 import io.github.knizamov.publishing.articles.Text.Companion.textConstraints
 import io.github.knizamov.publishing.articles.Title.Companion.titleConstraints
 import io.github.knizamov.publishing.articles.messages.ArticleDto
-import io.github.knizamov.publishing.articles.messages.commands.AssignCopywriterToArticle
-import io.github.knizamov.publishing.articles.messages.commands.EditDraftArticle
-import io.github.knizamov.publishing.articles.messages.commands.SubmitDraftArticle
-import io.github.knizamov.publishing.articles.messages.commands.SuggestChange
+import io.github.knizamov.publishing.articles.messages.commands.*
 import io.github.knizamov.publishing.articles.messages.queries.GetArticle
 import io.github.knizamov.publishing.articles.messages.queries.GetChangeSuggestions
 import io.github.knizamov.publishing.articles.review.ArticleReviewing
@@ -24,6 +21,7 @@ import io.github.knizamov.publishing.shared.authentication.assumeRole
 public class ArticleFacade internal constructor(
     private val articles: Articles,
     private val articleReviewing: ArticleReviewing,
+    private val publishingPolicyFactory: PublishingPolicyFactory,
     private val userContext: UserContext,
 ) {
     // Commands
@@ -50,6 +48,19 @@ public class ArticleFacade internal constructor(
         return savedArticle.toDto()
     }
 
+    public operator fun invoke(command: PublishArticle): ArticleDto {
+        val journalist = userContext.assumeRole<Journalist>()
+
+        val article = articles.getById(ArticleId(command.articleId))
+        val publishingPolicy: PublishingPolicy = publishingPolicyFactory.create()
+        article.publish(command, publishingPolicy, journalist)
+        val savedArticle = articles.save(article)
+
+        articleReviewing.closeArticleReviewing(article.id)
+
+        return savedArticle.toDto()
+    }
+
     public operator fun invoke(command: AssignCopywriterToArticle) {
         articleReviewing.assignCopywriter(command)
     }
@@ -66,7 +77,7 @@ public class ArticleFacade internal constructor(
     }
 
     public operator fun invoke(query: GetChangeSuggestions): List<ChangeSuggestionDto> {
-        return articleReviewing.getChangeSuggestions(query)
+        return articleReviewing.getChangeSuggestions(query).map { it.toDto() }
     }
 }
 

@@ -12,6 +12,8 @@ public data class EditDraftArticle(val articleId: String,
                                    val text: String,
                                    val topics: List<String>) : ArticleCommand() { public companion object }
 
+public data class PublishArticle(val articleId: String) : ArticleCommand() { public companion object }
+
 public data class AssignCopywriterToArticle(val copywriterUserId: String,
                                             val articleId: String): ArticleCommand() { public companion object }
 

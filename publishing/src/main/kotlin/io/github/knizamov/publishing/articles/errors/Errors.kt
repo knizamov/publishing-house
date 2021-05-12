@@ -10,6 +10,13 @@ public class ArticleNotFound(
     override val cause: Throwable? = null,
 ) : Error()
 
+public class PublishingPolicyNotSatisfied(
+    public val articleId: String,
+    public val reason: String,
+    override val message: String = reason,
+    override val cause: Throwable? = null
+): Error()
+
 public class ArticleDoesNotBelongToRequestedUser(
     public val articleId: String,
     override val userId: String,
@@ -21,6 +28,12 @@ public class ArticleDoesNotBelongToRequestedUser(
 public class CopywriterNotAssignedToReviewArticle(
     public val articleId: String,
     override val userId: String,
-    override val message: String = "Article $articleId does not belong to user $userId",
+    override val message: String = "Copywriter $userId is not assigned to review article $articleId",
     override val cause: Throwable? = null,
 ): AuthError.Unauthorized()
+
+public class ArticleReviewClosed(
+    public val articleId: String,
+    override val message: String = "Article review for $articleId is closed",
+    override val cause: Throwable? = null,
+): Error()
