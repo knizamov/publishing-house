@@ -38,31 +38,31 @@ Of course, those will be refined during the whole process and implementation.
 
 1. **When** A journalist submits a draft article (title, text, topics)
 2. **Then** The draft article is created with the provided content and can be viewed
-
+<br/>
 
 3. **Given** A copywriter is assigned to the article
 4. **When** The copywriter suggests a change to the article
 5. **Then** The change suggestion is attached to the given article and can be viewed
-
+<br/>
 
 6. **When** A journalist tries to publish the article
 7. **Then** The operation is rejected due to unresolved change suggestions
-
+<br/>
 
 8. **When** The journalist views the article change suggestions
 9. **Then** They can see the new change suggestion
-
+<br/>
 
 10. **When** The journalist makes the change suggestion by editing the article
 11. **Then** The article is edited with the provided content
 12. **When** The journalist marks the change suggestion as applied
 13. **Then** The change suggestion is marked and can be viewed as applied
-
+<br/>
 
 14. **When** The copywriter reviews the applied change suggestion
 15. **And** Marks it as resolved
 16. **Then** The change suggestion is marked and can be viewed as resolved
-
+<br/>
 
 17. **When** The journalist publishes the article
 18. **Then** The article is published (status is changed)
