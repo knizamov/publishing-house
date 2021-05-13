@@ -31,7 +31,8 @@ We're given some basic premise of the applications, and the description of what 
 So let's try to formalize it a bit more with BDD scenarios, and some other techniques to validate that we actually
 understand the problem and know how it's supposed to work, probably refining the whole process with the client.
 
-First attempt in formalizing the behaviour with BDD can be found in this commit:
+First attempt in formalizing the behaviour with BDD can be found in this commit: https://github.com/knizamov/publishing-house/commit/1b360b5db42032b9b4137e62bd77169cbe44d192
+
 Of course, those will be refined during the whole process and implementation.
 
 ### Acceptance scenario (Article drafting, reviewing, and publishing)
