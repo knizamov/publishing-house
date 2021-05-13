@@ -8,6 +8,11 @@ import io.github.knizamov.publishing.shared.security.Copywriter
 import java.time.Instant
 import java.util.*
 
+// Note for a reviewer: Not really sure about this approach, but my reasoning behind Change Suggestion requirements is that
+// it's pretty similar to normal comments. And storing potentially a huge number of comments under the Article aggregate doesn't seems wise and might cause contention issues
+// The reason for separating ArticleReview class is that I tried to respect potential Content/Article Review boundaries
+// that I sketched during my analysis (see readme) but now that I look at it, maybe ArticleReview could be merged into Article aggregate
+// but ChangeSuggestion and comments should still be handled separately
 internal class ArticleReview private constructor(
     public val articleId: ArticleId,
     private var status: Status,
